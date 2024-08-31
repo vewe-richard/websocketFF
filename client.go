@@ -442,16 +442,8 @@ func cloneTLSConfig(cfg *tls.Config) *tls.Config {
 	}
 	return cfg.Clone()
 }
-/*
-func (d *Dialer) goCallback(a C.int, b C.int) C.int {
-	result := int(a) + int(b)
-	fmt.Printf("Go callback called with values: %d, %d, returning: %d\n", int(a), int(b), result)
-	return C.int(result + 100)
-}*/
 
-
-
-func (d *Dialer) WritableUpdate(sockfd int) (error) {
+func (d *Dialer) DialUpgrade(sockfd int) (error) {
 	fmt.Println("call writableupdate")
 	for _, conn := range d.conns {
 		conn.req.Write(conn.conn)

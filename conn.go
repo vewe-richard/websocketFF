@@ -283,6 +283,7 @@ type Conn struct {
 	newDecompressionReader func(io.Reader) io.ReadCloser
 
 	req *http.Request
+	Sockfd int
 }
 
 func newConn(conn net.Conn, isServer bool, readBufferSize, writeBufferSize int, writeBufferPool BufferPool, br *bufio.Reader, writeBuf []byte) *Conn {
