@@ -110,6 +110,10 @@ type Dialer struct {
 	// If Jar is nil, cookies are not sent in requests and ignored
 	// in responses.
 	Jar http.CookieJar
+
+	Fstack bool
+
+	conns []*Conn
 }
 
 // Dial creates a new client connection by calling DialContext with a background context.
@@ -358,7 +362,13 @@ func (d *Dialer) DialContext(ctx context.Context, urlStr string, requestHeader h
 	}
 
 	conn := newConn(netConn, false, d.ReadBufferSize, d.WriteBufferSize, d.WriteBufferPool, nil, nil)
-
+	if d.Fstack {
+		netConn = nil
+		conn.req = req
+		d.conns = append(d.conns, conn)
+		return conn, nil, nil
+	}
+	
 	if err := req.Write(netConn); err != nil {
 		return nil, nil, err
 	}
@@ -431,4 +441,20 @@ func cloneTLSConfig(cfg *tls.Config) *tls.Config {
 		return &tls.Config{}
 	}
 	return cfg.Clone()
+}
+/*
+func (d *Dialer) goCallback(a C.int, b C.int) C.int {
+	result := int(a) + int(b)
+	fmt.Printf("Go callback called with values: %d, %d, returning: %d\n", int(a), int(b), result)
+	return C.int(result + 100)
+}*/
+
+
+
+func (d *Dialer) WritableUpdate(sockfd int) (error) {
+	fmt.Println("call writableupdate")
+	for _, conn := range d.conns {
+		conn.req.Write(conn.conn)
+	}
+	return nil
 }
