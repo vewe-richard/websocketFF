@@ -284,6 +284,8 @@ type Conn struct {
 
 	req *http.Request
 	Sockfd int
+	challengeKey string
+	Connected bool
 }
 
 func newConn(conn net.Conn, isServer bool, readBufferSize, writeBufferSize int, writeBufferPool BufferPool, br *bufio.Reader, writeBuf []byte) *Conn {

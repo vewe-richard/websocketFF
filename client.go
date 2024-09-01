@@ -114,6 +114,9 @@ type Dialer struct {
 	Fstack bool
 
 	conns []*Conn
+
+	DataProcessor  func(*Conn) (error)
+	OnConnected  func(*Conn) (error)
 }
 
 // Dial creates a new client connection by calling DialContext with a background context.
@@ -365,6 +368,7 @@ func (d *Dialer) DialContext(ctx context.Context, urlStr string, requestHeader h
 	if d.Fstack {
 		netConn = nil
 		conn.req = req
+		conn.challengeKey = challengeKey
 		d.conns = append(d.conns, conn)
 		return conn, nil, nil
 	}
@@ -443,10 +447,75 @@ func cloneTLSConfig(cfg *tls.Config) *tls.Config {
 	return cfg.Clone()
 }
 
-func (d *Dialer) DialUpgrade(sockfd int) (error) {
-	fmt.Println("call writableupdate")
+func (d *Dialer) SwitchToWebsocket(sockfd int) (error) {
 	for _, conn := range d.conns {
-		conn.req.Write(conn.conn)
+		if sockfd == conn.Sockfd {
+			fmt.Println("call writableupdate for", sockfd)
+			conn.req.Write(conn.conn)
+			break
+		}
 	}
+	return nil
+}
+
+
+func (d *Dialer) Process(sockfd int) (error) {
+	var conn *Conn
+	found := false
+	for _, conn = range d.conns {
+		if sockfd == conn.Sockfd {
+			fmt.Println("find conn", sockfd)
+			found = true
+			break
+		}
+	}
+	if !found { return errors.New("No connection")}
+	if conn.Connected {
+		fmt.Println("Data Processor")
+		return d.DataProcessor(conn)
+	}
+
+	resp, err := http.ReadResponse(conn.br, conn.req)
+	if err != nil {
+		fmt.Println("read response failed")
+	}
+	fmt.Println(resp.StatusCode, d.Jar)
+	if d.Jar != nil {
+		/*
+		if rc := resp.Cookies(); len(rc) > 0 {
+			d.Jar.SetCookies(u, rc)
+		}*/
+	}
+
+	if resp.StatusCode != 101 ||
+		!tokenListContainsValue(resp.Header, "Upgrade", "websocket") ||
+		!tokenListContainsValue(resp.Header, "Connection", "upgrade") ||
+		resp.Header.Get("Sec-Websocket-Accept") != computeAcceptKey(conn.challengeKey) {
+		buf := make([]byte, 1024)
+		n, _ := io.ReadFull(resp.Body, buf)
+		resp.Body = ioutil.NopCloser(bytes.NewReader(buf[:n]))
+		return errors.New("No success")
+	}
+
+	for _, ext := range parseExtensions(resp.Header) {
+		if ext[""] != "permessage-deflate" {
+			continue
+		}
+		fmt.Println("compression?")
+		/*
+		_, snct := ext["server_no_context_takeover"]
+		_, cnct := ext["client_no_context_takeover"]
+		if !snct || !cnct {
+			return nil, resp, errInvalidCompression
+		}
+		conn.newCompressionWriter = compressNoContextTakeover
+		conn.newDecompressionReader = decompressNoContextTakeover
+		 */
+		break
+	}
+	conn.subprotocol = resp.Header.Get("Sec-Websocket-Protocol")
+	fmt.Println("response done, subprotocol:", conn.subprotocol)
+	conn.Connected = true
+	d.OnConnected(conn)
 	return nil
 }
