@@ -354,6 +354,17 @@ func (d *Dialer) DialContext(ctx context.Context, urlStr string, requestHeader h
 		if trace != nil && trace.TLSHandshakeStart != nil {
 			trace.TLSHandshakeStart()
 		}
+		if d.Fstack {
+			conn := newConn(netConn, false, d.ReadBufferSize, d.WriteBufferSize, d.WriteBufferPool, nil, nil)
+			netConn = nil
+			conn.req = req
+			conn.challengeKey = challengeKey
+			conn.Handshake = 1  //start handshake
+			conn.cfg = cfg
+			d.conns = append(d.conns, conn)
+			return conn, nil, nil
+		}
+
 		err := doHandshake(ctx, tlsConn, cfg)
 		if trace != nil && trace.TLSHandshakeDone != nil {
 			trace.TLSHandshakeDone(tlsConn.ConnectionState(), err)
@@ -448,11 +459,32 @@ func cloneTLSConfig(cfg *tls.Config) *tls.Config {
 }
 
 func (d *Dialer) SwitchToWebsocket(sockfd int) (error) {
-	for _, conn := range d.conns {
+	var conn *Conn
+	for _, conn = range d.conns {
 		if sockfd == conn.Sockfd {
-			fmt.Println("call writableupdate for", sockfd)
-			conn.req.Write(conn.conn)
 			break
+		}
+	}
+	if conn == nil {return  errors.New("websocket: no such socket")}
+	if conn.Handshake == 0 { //no need to handshake
+		fmt.Println("call writableupdate for", sockfd)
+		conn.req.Write(conn.conn)
+	} else if conn.Handshake == 1 {
+		fmt.Println("start handshake")
+		var cc net.Conn = (conn.conn)
+		tlsConn, ok := cc.(*tls.Conn)
+		if !ok {
+			fmt.Println("Not possible, should be tlsConn")
+			return nil
+		} else {
+			err := doHandshake(context.Background(), tlsConn, conn.cfg)
+			if err == nil {
+				fmt.Println("Handshake done")
+				conn.req.Write(conn.conn)
+				conn.Handshake = 0
+			} else {
+				conn.Handshake = -1
+			}
 		}
 	}
 	return nil
@@ -473,6 +505,8 @@ func (d *Dialer) Process(sockfd int) (error) {
 	if conn.Connected {
 		fmt.Println("Data Processor")
 		return d.DataProcessor(conn)
+	} else if conn.Handshake != 0 {
+		return errors.New("Handshake not done")
 	}
 
 	resp, err := http.ReadResponse(conn.br, conn.req)
