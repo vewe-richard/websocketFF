@@ -289,6 +289,7 @@ type Conn struct {
 	Connected bool
 	Handshake int
 	cfg *tls.Config
+	Loop int
 }
 
 func newConn(conn net.Conn, isServer bool, readBufferSize, writeBufferSize int, writeBufferPool BufferPool, br *bufio.Reader, writeBuf []byte) *Conn {
