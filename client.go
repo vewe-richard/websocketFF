@@ -355,6 +355,7 @@ func (d *Dialer) DialContext(ctx context.Context, urlStr string, requestHeader h
 			trace.TLSHandshakeStart()
 		}
 		if d.Fstack {
+			cfg.InsecureSkipVerify = true
 			conn := newConn(netConn, false, d.ReadBufferSize, d.WriteBufferSize, d.WriteBufferPool, nil, nil)
 			netConn = nil
 			conn.req = req
@@ -477,12 +478,12 @@ func (d *Dialer) SwitchToWebsocket(sockfd int) (error) {
 			fmt.Println("Not possible, should be tlsConn")
 			return nil
 		} else {
+			tlsConn.HandshakeState = 1
 			err := doHandshake(context.Background(), tlsConn, conn.cfg)
 			if err == nil {
-				fmt.Println("Handshake done")
-				conn.req.Write(conn.conn)
-				conn.Handshake = 0
+				fmt.Println("Write handshake messages out")
 			} else {
+				fmt.Println("Write handshake messages err:", err)
 				conn.Handshake = -1
 			}
 		}
@@ -505,6 +506,37 @@ func (d *Dialer) Process(sockfd int) (error) {
 	if conn.Connected {
 		fmt.Println("Data Processor")
 		return d.DataProcessor(conn)
+	} else if conn.Handshake == 1 {
+		var cc net.Conn = (conn.conn)
+		tlsConn, ok := cc.(*tls.Conn)
+		if !ok {
+			fmt.Println("Not possible, should be tlsConn")
+			return errors.New("Not possible, should be tlsConn")
+		} else {
+			err := tlsConn.HandshakeContext2(context.Background())
+			if err != nil {return err}
+			conn.Handshake = 2
+			tlsConn.HandshakeState = 2
+			fmt.Println("Handshake state 2")
+			return nil
+		}
+		return errors.New("Handshake to be implemented")
+	} else if conn.Handshake == 2 {
+		var cc net.Conn = (conn.conn)
+		tlsConn, ok := cc.(*tls.Conn)
+		if !ok {
+			fmt.Println("Not possible, should be tlsConn")
+			return errors.New("Not possible, should be tlsConn")
+		} else {
+			err := tlsConn.HandshakeContext3(context.Background())
+			if err != nil {return err}
+			conn.Handshake = 0
+			tlsConn.HandshakeState = 0
+			fmt.Println("Handshake state 3")
+			conn.req.Write(conn.conn)
+			return nil
+		}
+		return errors.New("Handshake to be implemented")
 	} else if conn.Handshake != 0 {
 		return errors.New("Handshake not done")
 	}
