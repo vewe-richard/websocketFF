@@ -514,7 +514,17 @@ func (d *Dialer) Process(sockfd int) (error) {
 			return errors.New("Not possible, should be tlsConn")
 		} else {
 			err := tlsConn.HandshakeContext2(context.Background())
-			if err != nil {return err}
+			if err != nil {
+				if err.Error() == "Data Not Enough" {
+					fmt.Println("Call HandshakeContext2 again till success")
+					conn.Loop ++
+					if conn.Loop > 5{
+						return errors.New("out of loop")
+					}
+					return nil
+				}
+				return err
+			}
 			conn.Handshake = 2
 			tlsConn.HandshakeState = 2
 			fmt.Println("Handshake state 2")
@@ -530,10 +540,11 @@ func (d *Dialer) Process(sockfd int) (error) {
 		} else {
 			err := tlsConn.HandshakeContext3(context.Background())
 			if err != nil {
+				fmt.Println("handshakeContext3 error", err.Error())
 				if err.Error() == "Data Not Enough" {
 					fmt.Println("Call HandshakeContext3 again till success")
 					conn.Loop ++
-					if conn.Loop > 2{
+					if conn.Loop > 5{
 						return errors.New("out of loop")
 					}
 					return nil
