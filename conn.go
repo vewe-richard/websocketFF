@@ -1018,6 +1018,9 @@ func (c *Conn) NextReader() (messageType int, r io.Reader, err error) {
 	for c.readErr == nil {
 		frameType, err := c.advanceFrame()
 		if err != nil {
+			if err.Error() == "Data Not Enough" {
+				return noFrame, nil, err
+			}
 			c.readErr = hideTempErr(err)
 			break
 		}
