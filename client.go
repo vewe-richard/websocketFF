@@ -497,14 +497,14 @@ func (d *Dialer) Process(sockfd int) (error) {
 	found := false
 	for _, conn = range d.conns {
 		if sockfd == conn.Sockfd {
-			fmt.Println("find conn", sockfd)
+			//fmt.Println("find conn", sockfd)
 			found = true
 			break
 		}
 	}
 	if !found { return errors.New("No connection")}
 	if conn.Connected {
-		fmt.Println("Data Processor")
+		//fmt.Println("Data Processor")
 		return d.DataProcessor(conn)
 	} else if conn.Handshake == 1 {
 		var cc net.Conn = (conn.conn)
