@@ -766,7 +766,7 @@ func (c *Conn) WritePreparedMessage(pm *PreparedMessage) error {
 // WriteMessage is a helper method for getting a writer using NextWriter,
 // writing the message and closing the writer.
 func (c *Conn) WriteMessage(messageType int, data []byte) error {
-
+	//net.SetTimeRecord(1)
 	if c.isServer && (c.newCompressionWriter == nil || !c.enableWriteCompression) {
 		// Fast path with no allocations and single frame.
 
@@ -788,6 +788,15 @@ func (c *Conn) WriteMessage(messageType int, data []byte) error {
 		return err
 	}
 	return w.Close()
+}
+
+func (c *Conn) MyWriteMessage(messageType int, data []byte) error {
+	net.SetTimeRecord(1)
+	if c.isServer {
+		err := c.write(0, time.Time{}, data[0:100], data)
+		return err
+	}
+	return nil
 }
 
 // SetWriteDeadline sets the write deadline on the underlying network
