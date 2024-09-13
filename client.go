@@ -392,6 +392,7 @@ func (d *Dialer) DialContext(ctx context.Context, urlStr string, requestHeader h
 		conn.req = req
 		conn.challengeKey = challengeKey
 		d.conns = append(d.conns, conn)
+		net.FFAddConn(net.FFCurSock(), net.FFWebsocketConn, conn)
 		return conn, nil, nil
 	}
 	

@@ -6,9 +6,11 @@ package websocket
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -290,6 +292,9 @@ type Conn struct {
 	Handshake int
 	cfg *tls.Config
 	Loop int
+
+	DataProcessor  func(*Conn) (error)
+	OnConnected  func(*Conn) (error)
 }
 
 func newConn(conn net.Conn, isServer bool, readBufferSize, writeBufferSize int, writeBufferPool BufferPool, br *bufio.Reader, writeBuf []byte) *Conn {
@@ -1257,4 +1262,77 @@ func FormatCloseMessage(closeCode int, text string) []byte {
 	binary.BigEndian.PutUint16(buf, uint16(closeCode))
 	copy(buf[2:], text)
 	return buf
+}
+
+func (c *Conn) AsynHandshakeAfterTCPConnected() error {
+	if c.Handshake == 0 { //no need to handshake
+		fmt.Println("call writableupdate for")
+		c.req.Write(c.conn)
+	} else if c.Handshake == 1 {
+		fmt.Println("start handshake")
+		var cc net.Conn = (c.conn)
+		tlsConn, ok := cc.(*tls.Conn)
+		if !ok {
+			fmt.Println("Not possible, should be tlsConn")
+			return errors.New("Not possible, should be tlsConn")
+		} else {
+			tlsConn.HandshakeState = 1
+			/*
+			err := doHandshake(context.Background(), tlsConn, conn.cfg)
+			if err == nil {
+				fmt.Println("Write handshake messages out")
+			} else {
+				fmt.Println("Write handshake messages err:", err)
+				conn.Handshake = -1
+			}*/
+		}
+	}
+	return nil
+}
+
+func (c *Conn) AsynHandshakeUpgradeResponse() error {
+	resp, err := http.ReadResponse(c.br, c.req)
+	if err != nil {
+		fmt.Println("read response failed")
+		return errors.New("read response failed")
+	}
+
+	/*fmt.Println(resp.StatusCode, d.Jar)
+	if d.Jar != nil {
+			if rc := resp.Cookies(); len(rc) > 0 {
+				d.Jar.SetCookies(u, rc)
+			}
+	}*/
+	fmt.Println(resp.StatusCode)
+	if resp.StatusCode != 101 ||
+		!tokenListContainsValue(resp.Header, "Upgrade", "websocket") ||
+		!tokenListContainsValue(resp.Header, "Connection", "upgrade") ||
+		resp.Header.Get("Sec-Websocket-Accept") != computeAcceptKey(c.challengeKey) {
+		buf := make([]byte, 1024)
+		n, _ := io.ReadFull(resp.Body, buf)
+		resp.Body = ioutil.NopCloser(bytes.NewReader(buf[:n]))
+		return errors.New("No success")
+	}
+
+	for _, ext := range parseExtensions(resp.Header) {
+		if ext[""] != "permessage-deflate" {
+			continue
+		}
+		fmt.Println("compression?")
+		/*
+			_, snct := ext["server_no_context_takeover"]
+			_, cnct := ext["client_no_context_takeover"]
+			if !snct || !cnct {
+				return nil, resp, errInvalidCompression
+			}
+			conn.newCompressionWriter = compressNoContextTakeover
+			conn.newDecompressionReader = decompressNoContextTakeover
+		*/
+		break
+	}
+	c.subprotocol = resp.Header.Get("Sec-Websocket-Protocol")
+	fmt.Println("response done, subprotocol:", c.subprotocol)
+	c.Connected = true
+	//d.OnConnected(conn)
+	return nil
 }
