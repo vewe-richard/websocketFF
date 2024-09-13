@@ -150,6 +150,15 @@ var DefaultDialer = &Dialer{
 	HandshakeTimeout: 45 * time.Second,
 }
 
+var FstackDialer = &Dialer{
+	Proxy:            http.ProxyFromEnvironment,
+	HandshakeTimeout: 45 * time.Second,
+	Fstack: true,
+	NetDial: func(network, addr string) (net.Conn, error) {
+		return net.FstackDial("tcp4", addr)
+	},
+}
+
 // nilDialer is dialer to use when receiver is nil.
 var nilDialer = *DefaultDialer
 
@@ -363,6 +372,7 @@ func (d *Dialer) DialContext(ctx context.Context, urlStr string, requestHeader h
 			conn.Handshake = 1  //start handshake
 			conn.cfg = cfg
 			d.conns = append(d.conns, conn)
+			net.FFAddConn(net.FFCurSock(), net.FFWebsocketConn, conn)
 			return conn, nil, nil
 		}
 
