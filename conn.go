@@ -7,6 +7,7 @@ package websocket
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
@@ -1264,27 +1265,39 @@ func FormatCloseMessage(closeCode int, text string) []byte {
 	return buf
 }
 
-func (c *Conn) AsynHandshakeAfterTCPConnected() error {
+func (c *Conn) GetTlsConn() *tls.Conn {
+	var cc net.Conn = (c.conn)
+	tlsConn, ok := cc.(*tls.Conn)
+	if !ok {
+		return nil
+	}
+	return tlsConn
+}
+
+func (c *Conn) RequestHttpUpgrade() {
+	c.req.Write(c.conn)
+}
+
+func (c *Conn) AsynHandshakeAfterTCPConnected(ctx context.Context) error {
 	if c.Handshake == 0 { //no need to handshake
 		fmt.Println("call http upgrade for websocket")
 		c.req.Write(c.conn)
 	} else if c.Handshake == 1 {
-		fmt.Println("start handshake")
+		fmt.Println("start tls handshake")
 		var cc net.Conn = (c.conn)
 		tlsConn, ok := cc.(*tls.Conn)
 		if !ok {
-			fmt.Println("Not possible, should be tlsConn")
+			c.Handshake = -1
 			return errors.New("Not possible, should be tlsConn")
 		} else {
 			tlsConn.HandshakeState = 1
-			/*
-			err := doHandshake(context.Background(), tlsConn, conn.cfg)
+			err := doHandshake(ctx, tlsConn, c.cfg)
 			if err == nil {
-				fmt.Println("Write handshake messages out")
+				fmt.Println("Write tls handshake messages out")
 			} else {
-				fmt.Println("Write handshake messages err:", err)
-				conn.Handshake = -1
-			}*/
+				fmt.Println("Write tls handshake messages err:", err)
+				c.Handshake = -1
+			}
 		}
 	}
 	return nil
