@@ -1266,7 +1266,7 @@ func FormatCloseMessage(closeCode int, text string) []byte {
 
 func (c *Conn) AsynHandshakeAfterTCPConnected() error {
 	if c.Handshake == 0 { //no need to handshake
-		fmt.Println("call writableupdate for")
+		fmt.Println("call http upgrade for websocket")
 		c.req.Write(c.conn)
 	} else if c.Handshake == 1 {
 		fmt.Println("start handshake")
@@ -1303,7 +1303,7 @@ func (c *Conn) AsynHandshakeUpgradeResponse() error {
 				d.Jar.SetCookies(u, rc)
 			}
 	}*/
-	fmt.Println(resp.StatusCode)
+
 	if resp.StatusCode != 101 ||
 		!tokenListContainsValue(resp.Header, "Upgrade", "websocket") ||
 		!tokenListContainsValue(resp.Header, "Connection", "upgrade") ||
@@ -1331,7 +1331,7 @@ func (c *Conn) AsynHandshakeUpgradeResponse() error {
 		break
 	}
 	c.subprotocol = resp.Header.Get("Sec-Websocket-Protocol")
-	fmt.Println("response done, subprotocol:", c.subprotocol)
+	fmt.Println("upgrade response done, subprotocol:", c.subprotocol)
 	c.Connected = true
 	//d.OnConnected(conn)
 	return nil
