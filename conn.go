@@ -1306,8 +1306,8 @@ func (c *Conn) AsynHandshakeAfterTCPConnected(ctx context.Context) error {
 func (c *Conn) AsynHandshakeUpgradeResponse() error {
 	resp, err := http.ReadResponse(c.br, c.req)
 	if err != nil {
-		fmt.Println("read response failed")
-		return errors.New("read response failed")
+		fmt.Println("read response failed 1")
+		return errors.New("read response failed 2")
 	}
 
 	/*fmt.Println(resp.StatusCode, d.Jar)
