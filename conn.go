@@ -296,6 +296,10 @@ type Conn struct {
 
 	DataProcessor  func(*Conn) (error)
 	OnConnected  func(*Conn) (error)
+
+	messageP  []byte
+	messageT  int
+	messageR io.Reader
 }
 
 func newConn(conn net.Conn, isServer bool, readBufferSize, writeBufferSize int, writeBufferPool BufferPool, br *bufio.Reader, writeBuf []byte) *Conn {
@@ -1033,9 +1037,11 @@ func (c *Conn) NextReader() (messageType int, r io.Reader, err error) {
 	for c.readErr == nil {
 		frameType, err := c.advanceFrame()
 		if err != nil {
-			if err.Error() == "Data Not Enough" {
+			if errors.As(err, new(*net.DataNotEnoughError)) {
+				fmt.Println("Got DataNotEnough call advanceFrame in NextReader")
 				return noFrame, nil, err
 			}
+			fmt.Println("advance frame error", err)
 			c.readErr = hideTempErr(err)
 			break
 		}
@@ -1076,7 +1082,16 @@ func (r *messageReader) Read(b []byte) (int, error) {
 				b = b[:c.readRemaining]
 			}
 			n, err := c.br.Read(b)
-			c.readErr = hideTempErr(err)
+			if err != nil {
+				if errors.As(err, new(*net.DataNotEnoughError)) {
+					fmt.Println("Do not set readErr")
+					return 0, err
+				} else {
+					fmt.Println("set readErr", c.readErr)
+					c.readErr = hideTempErr(err)
+
+				}
+			}
 			if c.isServer {
 				c.readMaskPos = maskBytes(c.readMaskKey, c.readMaskPos, b[:n])
 			}
@@ -1098,6 +1113,7 @@ func (r *messageReader) Read(b []byte) (int, error) {
 		switch {
 		case err != nil:
 			c.readErr = hideTempErr(err)
+			fmt.Println("set readErr2", c.readErr)
 		case frameType == TextMessage || frameType == BinaryMessage:
 			c.readErr = errors.New("websocket: internal error, unexpected text or binary in Reader")
 		}
@@ -1117,13 +1133,28 @@ func (r *messageReader) Close() error {
 // ReadMessage is a helper method for getting a reader using NextReader and
 // reading from that reader to a buffer.
 func (c *Conn) ReadMessage() (messageType int, p []byte, err error) {
-	var r io.Reader
-	messageType, r, err = c.NextReader()
-	if err != nil {
-		return messageType, nil, err
+	if c.messageP == nil {
+		c.messageT, c.messageR, err = c.NextReader()
+		if err != nil {
+			return c.messageT, nil, err
+		}
+		p, err = ioutil.ReadAll(c.messageR)
+		if err != nil && errors.As(err, new(*net.DataNotEnoughError)) {
+			c.messageP = p
+			return messageType, nil, err
+		}
+		return c.messageT, p, err
+	} else {
+		p2, err := ioutil.ReadAll(c.messageR)
+		if err != nil && errors.As(err, new(*net.DataNotEnoughError)) {
+			c.messageP = append(c.messageP, p2...)
+			return c.messageT, nil, err
+		}
+		p = append(c.messageP, p2...)
+		c.messageP = nil
+		return c.messageT, p, nil
 	}
-	p, err = ioutil.ReadAll(r)
-	return messageType, p, err
+
 }
 
 // SetReadDeadline sets the read deadline on the underlying network connection.
