@@ -1380,3 +1380,9 @@ func (c *Conn) AsynHandshakeUpgradeResponse() error {
 	//d.OnConnected(conn)
 	return nil
 }
+
+func (c *Conn) FstackCallbacks(onConnected func(*Conn) error, dataProcessor func(*Conn) error) {
+	c.OnConnected = onConnected
+	c.DataProcessor = dataProcessor
+}
+
