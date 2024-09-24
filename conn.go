@@ -1312,7 +1312,10 @@ func (c *Conn) RequestHttpUpgrade() {
 func (c *Conn) AsynHandshakeAfterTCPConnected(ctx context.Context) error {
 	if c.Handshake == 0 { //no need to handshake
 		fmt.Println("call http upgrade for websocket")
-		c.req.Write(c.conn)
+		err := c.req.Write(c.conn)
+		if err != nil {
+			return err
+		}
 	} else if c.Handshake == 1 {
 		fmt.Println("start tls handshake")
 		var cc net.Conn = (c.conn)
