@@ -479,10 +479,8 @@ func (d *Dialer) SwitchToWebsocket(sockfd int) (error) {
 	}
 	if conn == nil {return  errors.New("websocket: no such socket")}
 	if conn.Handshake == 0 { //no need to handshake
-		fmt.Println("call writableupdate for", sockfd)
 		conn.req.Write(conn.conn)
 	} else if conn.Handshake == 1 {
-		fmt.Println("start handshake")
 		var cc net.Conn = (conn.conn)
 		tlsConn, ok := cc.(*tls.Conn)
 		if !ok {
@@ -538,7 +536,6 @@ func (d *Dialer) Process(sockfd int) (error) {
 			}
 			conn.Handshake = 2
 			tlsConn.HandshakeState = 2
-			fmt.Println("Handshake state 2")
 			return nil
 		}
 		return errors.New("Handshake to be implemented")
@@ -564,7 +561,6 @@ func (d *Dialer) Process(sockfd int) (error) {
 			}
 			conn.Handshake = 0
 			tlsConn.HandshakeState = 0
-			fmt.Println("Handshake state 3")
 			conn.req.Write(conn.conn)
 			return nil
 		}
@@ -577,7 +573,6 @@ func (d *Dialer) Process(sockfd int) (error) {
 	if err != nil {
 		fmt.Println("read response failed")
 	}
-	fmt.Println(resp.StatusCode, d.Jar)
 	if d.Jar != nil {
 		/*
 		if rc := resp.Cookies(); len(rc) > 0 {
@@ -612,7 +607,6 @@ func (d *Dialer) Process(sockfd int) (error) {
 		break
 	}
 	conn.subprotocol = resp.Header.Get("Sec-Websocket-Protocol")
-	fmt.Println("response done, subprotocol:", conn.subprotocol)
 	conn.Connected = true
 	d.OnConnected(conn)
 	return nil
